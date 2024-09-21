@@ -4,6 +4,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import Main from "./pages/Main";
 import ManageAccount from "./pages/ManageAccount";
+import ImportAccount from "./pages/ImportAccount";
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Main />} />
           <Route path="/manage-account" element={<ManageAccount />} />
+          <Route path="/import-account" element={<ImportAccount />} />
         </Routes>
       </main>
       <Footer />
