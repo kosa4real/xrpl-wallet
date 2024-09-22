@@ -1,3 +1,4 @@
+import { useAccount } from "../contexts/AccountContext";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faThumbsUp, faTrash, faList } from "@fortawesome/free-solid-svg-icons";
 
@@ -6,26 +7,45 @@ import { Link } from "react-router-dom";
 
 import "./styles/manage-account.scss";
 function ManageAccount() {
+  const { accounts, removeAccount, selectWallet } = useAccount();
+
+  const handleSelectAccount = (account) => {
+    selectWallet(account);
+  };
+
+  const handleRemoveAccount = (account) => {
+    removeAccount(account);
+  };
+
   return (
     <div className="manage-accounts">
       <h1>
         <FontAwesomeIcon icon={faList} />
         <span>My Accounts</span>
       </h1>
-
       <ul>
-        <li>
-          <div className="address">Fake Address</div>
-          <div className="buttons-container">
-            <Button variant="primary">
-              <FontAwesomeIcon icon={faThumbsUp} />
-            </Button>
+        {accounts.map((account) => {
+          return (
+            <li key={account.address}>
+              <div className="address">{account.address}</div>
+              <div className="buttons-container">
+                <Button
+                  variant="primary"
+                  onClick={() => handleSelectAccount(account)}
+                >
+                  <FontAwesomeIcon icon={faThumbsUp} />
+                </Button>
 
-            <Button variant="danger">
-              <FontAwesomeIcon icon={faTrash} />
-            </Button>
-          </div>
-        </li>
+                <Button
+                  variant="danger"
+                  onClick={() => handleRemoveAccount(account)}
+                >
+                  <FontAwesomeIcon icon={faTrash} />
+                </Button>
+              </div>
+            </li>
+          );
+        })}
       </ul>
       <div className="action-buttons">
         <Link to="/import-account">
