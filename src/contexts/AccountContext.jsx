@@ -42,62 +42,61 @@ export const AccountProvider = ({ children }) => {
       }
     }
   }, []);
-const _getTransactions = useCallback(async (account) => {
-  if (account) {
-    const client = new Client(import.meta.env.VITE_XRPL_NETWORK);
+  const _getTransactions = useCallback(async (account) => {
+    if (account) {
+      const client = new Client(import.meta.env.VITE_XRPL_NETWORK);
 
-    // Await the connection to ensure it's ready before making requests
-    await client.connect();
+      // Await the connection to ensure it's ready before making requests
+      await client.connect();
 
-    try {
-      const allTransactions = await client.request({
-        command: "account_tx",
-        account: account.address,
-        ledger_index_min: -1,
-        ledger_index_max: -1,
-        limit: 20,
-        forward: false,
-      });
-
-      // Filter the transactions - we only care about payments in XRP
-      const filteredTransactions = allTransactions.result.transactions
-        .filter((transaction) => {
-          console.log("SINGLE TRANSACTION", transaction)
-          // Use tx_json.TransactionType to filter for "Payment" transactions
-          if (transaction.tx_json.TransactionType !== "Payment") return false;
-
-          // Filter only for XRP Payments (delivered_amount exists as a string)
-          return typeof transaction.delivered_amount === "string";
-        })
-        .map((transaction) => {
-          return {
-            account: transaction.tx_json.Account,
-            destination: transaction.tx_json.Destination,
-            hash: transaction.hash,
-            direction:
-              transaction.tx_json.Account === account.address
-                ? "Sent"
-                : "Received",
-            date: new Date((transaction.date + 946684800) * 1000), // Convert to correct date
-            transactionResult: transaction.TransactionResult, // It's directly available now
-            amount:
-              transaction.TransactionResult === "tesSUCCESS"
-                ? dropsToXrp(transaction.delivered_amount) // delivered_amount is directly available
-                : 0,
-          };
+      try {
+        const allTransactions = await client.request({
+          command: "account_tx",
+          account: account.address,
+          ledger_index_min: -1,
+          ledger_index_max: -1,
+          limit: 20,
+          forward: false,
         });
-      console.log(filteredTransactions)
-      setTransactions(filteredTransactions);
-      console.log("FILTERED", filteredTransactions);
-    } catch (error) {
-      console.error(error);
-      setTransactions([]);
-    } finally {
-      await client.disconnect();
-    }
-  }
-}, []);
+        console.log("ALL", allTransactions)
 
+        // Filter the transactions - we only care about payments in XRP
+        const filteredTransactions = allTransactions.result.transactions
+          .filter((transaction) => {
+            console.log("SINGLE TRANSACTION", transaction);
+            // Use tx_json.TransactionType to filter for "Payment" transactions
+            if (transaction.tx_json.TransactionType !== "Payment") return false;
+
+            // Filter only for XRP Payments (delivered_amount exists as a string)
+            return typeof transaction.meta.delivered_amount === "string";
+          })
+          .map((transaction) => {
+            return {
+              account: transaction.tx_json.Account,
+              destination: transaction.tx_json.Destination,
+              hash: transaction.hash,
+              direction:
+                transaction.tx_json.Account === account.address
+                  ? "Sent"
+                  : "Received",
+              date: new Date((transaction.tx_json.date + 946684800) * 1000), // Convert to correct date
+              transactionResult: transaction.meta.TransactionResult, // It's directly available now
+              amount:
+                transaction.TransactionResult === "tesSUCCESS"
+                  ? dropsToXrp(transaction.delivered_amount) // delivered_amount is directly available
+                  : 0,
+            };
+          });
+        setTransactions(filteredTransactions);
+        console.log("FILTERED", filteredTransactions);
+      } catch (error) {
+        console.error(error);
+        setTransactions([]);
+      } finally {
+        await client.disconnect();
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const storedAccounts = localStorage.getItem("accounts");
