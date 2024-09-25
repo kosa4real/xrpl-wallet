@@ -20,7 +20,9 @@ function Transactions() {
       </label>
       <ul>
         {transactions.map((transaction) => (
+          
           <li key={transaction.hash}>
+            
             <Transaction transaction={transaction} />
           </li>
         ))}

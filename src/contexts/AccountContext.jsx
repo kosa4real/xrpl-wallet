@@ -5,7 +5,7 @@ import {
   useEffect,
   useCallback,
 } from "react";
-import { Client, dropsToXrp, xrpToDrops } from "xrpl";
+import { Client, dropsToXrp, xrpToDrops, Wallet } from "xrpl";
 
 //Create context
 const AccountContext = createContext();
@@ -42,6 +42,7 @@ export const AccountProvider = ({ children }) => {
       }
     }
   }, []);
+
   const _getTransactions = useCallback(async (account) => {
     if (account) {
       const client = new Client(import.meta.env.VITE_XRPL_NETWORK);
@@ -58,12 +59,10 @@ export const AccountProvider = ({ children }) => {
           limit: 20,
           forward: false,
         });
-        console.log("ALL", allTransactions)
 
         // Filter the transactions - we only care about payments in XRP
         const filteredTransactions = allTransactions.result.transactions
           .filter((transaction) => {
-            console.log("SINGLE TRANSACTION", transaction);
             // Use tx_json.TransactionType to filter for "Payment" transactions
             if (transaction.tx_json.TransactionType !== "Payment") return false;
 
@@ -71,6 +70,7 @@ export const AccountProvider = ({ children }) => {
             return typeof transaction.meta.delivered_amount === "string";
           })
           .map((transaction) => {
+            console.log(transaction.TransactionResult);
             return {
               account: transaction.tx_json.Account,
               destination: transaction.tx_json.Destination,
@@ -82,13 +82,12 @@ export const AccountProvider = ({ children }) => {
               date: new Date((transaction.tx_json.date + 946684800) * 1000), // Convert to correct date
               transactionResult: transaction.meta.TransactionResult, // It's directly available now
               amount:
-                transaction.TransactionResult === "tesSUCCESS"
-                  ? dropsToXrp(transaction.delivered_amount) // delivered_amount is directly available
+                transaction.meta.TransactionResult === "tesSUCCESS"
+                  ? dropsToXrp(transaction.meta?.delivered_amount) // delivered_amount is directly available
                   : 0,
             };
           });
         setTransactions(filteredTransactions);
-        console.log("FILTERED", filteredTransactions);
       } catch (error) {
         console.error(error);
         setTransactions([]);
@@ -170,6 +169,50 @@ export const AccountProvider = ({ children }) => {
     });
   };
 
+  const sendXRP = async (amount, destination, destinationTag) => {
+    alert("in send xrp")
+    if (!selectedWallet) throw new Error("No wallet selected");
+
+    //Get wallet from seed
+    const wallet = Wallet.fromSeed(selectedWallet.seed);
+
+    //New ledger connection
+    const client = new Client(import.meta.env.VITE_XRPL_NETWORK);
+    await client.connect();
+
+    try {
+      //Create payment object
+
+      const payment = {
+        TransactionType: "Payment",
+        Account: wallet.classicAddress,
+        Amount: xrpToDrops(amount),
+        Destination: destination,
+      };
+      if (destinationTag) {
+        payment.DestinationTag = parseInt(destinationTag);
+      }
+
+      //Prepare transaction
+      const prepared = await client.autofill(payment);
+
+      //sign the transaction
+      const signed = wallet.sign(prepared);
+
+      //Submit the transaction and wait before running into finally block
+      await client.submitAndWait(signed.tx_blob);
+
+    } catch (error) {
+      console.log(error);
+    } finally {
+      await client.disconnect();
+
+      //Update the selectedWallet balance and transaction state
+      refreshBalance(selectedWallet);
+      refreshTransactions(selectedWallet)
+    }
+  };
+
   return (
     <AccountContext.Provider
       value={{
@@ -182,6 +225,7 @@ export const AccountProvider = ({ children }) => {
         removeAccount,
         selectWallet,
         refreshBalance,
+        sendXRP,
       }}
     >
       {children}

@@ -6,6 +6,8 @@ import Main from "./pages/Main";
 import ManageAccount from "./pages/ManageAccount";
 import ImportAccount from "./pages/ImportAccount";
 import GenerateAccount from "./pages/GenerateAccount";
+import Send from "./pages/Send";
+
 
 function App() {
   return (
@@ -14,6 +16,7 @@ function App() {
       <main>
         <Routes>
           <Route path="/" element={<Main />} />
+          <Route path="/send" element={<Send/>} />
           <Route path="/manage-account" element={<ManageAccount />} />
           <Route path="/import-account" element={<ImportAccount />} />
           <Route path="/generate-account" element={<GenerateAccount />} />
