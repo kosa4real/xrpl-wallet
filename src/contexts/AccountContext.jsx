@@ -4,14 +4,17 @@ import {
   useState,
   useEffect,
   useCallback,
+  useRef,
 } from "react";
 import { Client, dropsToXrp, xrpToDrops, Wallet } from "xrpl";
+import { ToastManager } from "../components/Toast";
 
 //Create context
 const AccountContext = createContext();
 
 //Provide component
 export const AccountProvider = ({ children }) => {
+  const client = useRef();
   const [accounts, setAccounts] = useState([]);
   const [selectedWallet, setSelectedWallet] = useState();
   const [transactions, setTransactions] = useState([]);
@@ -70,7 +73,6 @@ export const AccountProvider = ({ children }) => {
             return typeof transaction.meta.delivered_amount === "string";
           })
           .map((transaction) => {
-            console.log(transaction.TransactionResult);
             return {
               account: transaction.tx_json.Account,
               destination: transaction.tx_json.Destination,
@@ -130,8 +132,66 @@ export const AccountProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    // Open a web socket to listen for transactions
+    //This web socket will be created once and reused
+    if (!client.current) {
+      client.current = new Client(import.meta.env.VITE_XRPL_NETWORK);
+    }
+
+    const onTransaction = async (event) => {
+      if (event.meta.TransactionResult === "tesSUCCESS") {
+        console.log(event)
+        if (event.tx_json.Account === selectedWallet.address) {
+          //Sent
+          ToastManager.addToast(
+            `Successfully sent ${dropsToXrp(
+              event.meta.delivered_amount
+            )} XRP`
+          );
+        } else if (event.tx_json.Destination === selectedWallet.address) {
+          ToastManager.addToast(
+            `Successfully received ${dropsToXrp(
+              event.transaction.meta.delivered_amount
+            )} XRP`
+          );
+        }
+      } else {
+        ToastManager.addToast("Failed");
+      }
+      _getBalance(selectedWallet);
+      _getTransactions(selectedWallet);
+    };
+
+    const listenToWallet = async () => {
+      try {
+        if (!client.current.isConnected()) await client.current.connect();
+        client.current.on("transaction", onTransaction);
+
+        await client.current.request({
+          command: "subscribe",
+          accounts: [selectedWallet?.address],
+        });
+      } catch (error) {
+        console.error(error);
+      } //We don't close any connection
+    };
+
+    selectedWallet && listenToWallet();
     _getBalance(selectedWallet);
     _getTransactions(selectedWallet);
+
+    return () => {
+      // Clean-up if there is a previous connection open
+      if (client.current.isConnected()) {
+        (async () => {
+          client.current.removeListener("transaction", onTransaction);
+          await client.current.request({
+            command: "unsubscribe",
+            accounts: [selectedWallet.address],
+          });
+        })();
+      }
+    };
   }, [selectedWallet, _getBalance, _getTransactions]);
 
   const refreshBalance = () => {
@@ -170,7 +230,7 @@ export const AccountProvider = ({ children }) => {
   };
 
   const sendXRP = async (amount, destination, destinationTag) => {
-    alert("in send xrp")
+    alert("in send xrp");
     if (!selectedWallet) throw new Error("No wallet selected");
 
     //Get wallet from seed
@@ -201,7 +261,6 @@ export const AccountProvider = ({ children }) => {
 
       //Submit the transaction and wait before running into finally block
       await client.submitAndWait(signed.tx_blob);
-
     } catch (error) {
       console.log(error);
     } finally {
@@ -209,7 +268,7 @@ export const AccountProvider = ({ children }) => {
 
       //Update the selectedWallet balance and transaction state
       refreshBalance(selectedWallet);
-      refreshTransactions(selectedWallet)
+      refreshTransactions(selectedWallet);
     }
   };
 
@@ -226,6 +285,7 @@ export const AccountProvider = ({ children }) => {
         selectWallet,
         refreshBalance,
         sendXRP,
+        selectedWallet,
       }}
     >
       {children}
